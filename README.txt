@@ -1,0 +1,1 @@
+Replace these four JS files in your project root, then redeploy.
