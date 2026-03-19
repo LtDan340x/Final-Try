@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>H-Town Hitters Race App - MultiView Board</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main class="board-shell">
+    <header class="board-top glass">
+      <div>
+        <div class="eyebrow">Track Board</div>
+        <h1 id="boardEventName">H-Town Hitters Race App</h1>
+      </div>
+      <div class="board-stats">
+        <div class="stat-chip">Round <span id="boardRound">1</span></div>
+        <div class="stat-chip">Status <span id="boardStatus">Staging</span></div>
+      </div>
+    </header>
+
+    <section id="boardAlert" class="alert-banner hidden"></section>
+
+    <section class="board-grid">
+      <article class="panel glass">
+        <div class="panel-head"><h3>Pairings</h3></div>
+        <div id="boardPairings" class="list-stack large"></div>
+      </article>
+      <article class="panel glass">
+        <div class="panel-head"><h3>Lane Board</h3></div>
+        <div id="boardLanes" class="list-stack large"></div>
+      </article>
+    </section>
+  </main>
+  <script src="app.js"></script>
+  <script src="board.js"></script>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="supabase-config.js"></script>
+</body>
+</html>
