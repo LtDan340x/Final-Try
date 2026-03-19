@@ -3,16 +3,12 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>H-Town Hitters Race App - MultiView Board</title>
-
+  <title>H-Town Hitters Race App - Admin</title>
   <link rel="stylesheet" href="styles.css" />
-
   <script src="supabase-config.js"></script>
 </head>
-
 <body>
   <div class="app-shell">
-
     <aside class="side-panel glass">
       <div class="brand-block">
         <div class="brand-kicker">B STYLE</div>
@@ -21,53 +17,208 @@
       </div>
 
       <nav class="nav-stack">
-        <a class="nav-link" href="admin.html">Admin</a>
+        <a class="nav-link active" href="admin.html">Admin</a>
         <a class="nav-link" href="racer.html">Racer View</a>
-        <a class="nav-link active" href="board.html">MultiView Board</a>
+        <a class="nav-link" href="board.html">MultiView Board</a>
         <a class="nav-link" href="index.html">Home</a>
       </nav>
 
-      <div class="sync-box">
-        <h4>SYNC MODE</h4>
-        <p id="syncStatus">Checking...</p>
+      <div class="panel-card">
+        <div class="panel-label">SYNC MODE</div>
+        <div id="syncModeTitle" class="sync-title">Local Browser Mode</div>
+        <div class="sync-buttons">
+          <button type="button" class="sync-btn" id="syncAutoBtn">Auto</button>
+          <button type="button" class="sync-btn active" id="syncOnlineBtn">Online</button>
+          <button type="button" class="sync-btn" id="syncLocalBtn">Local</button>
+        </div>
+        <div id="syncMessage" class="sync-message">
+          Checking connection...
+        </div>
       </div>
 
-      <div class="share-box">
-        <h4>SHARE LINK</h4>
-        <p>https://htxhitters.netlify.app/board</p>
+      <div class="panel-card share-card">
+        <div class="panel-label">SHARE LINK</div>
+        <div class="share-link">https://htxhitters.netlify.app/admin</div>
       </div>
     </aside>
 
     <main class="main-panel">
-      <h2>Track Board</h2>
-
-      <div class="card">
-        <h3>Track Status</h3>
-        <p id="boardTrackStatus">Waiting for updates...</p>
+      <div class="hero-card glass">
+        <div class="section-kicker">ADMIN CONTROL</div>
+        <h2>Round Manager</h2>
       </div>
 
-      <div class="card">
-        <h3>Call To Lanes</h3>
-        <p id="boardCallMessage">No active call-to-lanes message.</p>
-      </div>
+      <div class="content-grid">
+        <section class="glass form-card">
+          <h3>Event Setup</h3>
 
-      <div class="card">
-        <h3>Lane / Pairing Board</h3>
-        <div id="boardPairings">
-          Waiting for pairings...
-        </div>
+          <div class="form-grid">
+            <div class="field">
+              <label for="eventName">Event Name</label>
+              <input id="eventName" type="text" value="H-Town Hitters Race App" />
+            </div>
+
+            <div class="field">
+              <label for="adminPasscode">Admin Passcode</label>
+              <input id="adminPasscode" type="text" placeholder="Optional passcode" />
+            </div>
+
+            <div class="field">
+              <label for="currentRound">Current Round</label>
+              <input id="currentRound" type="number" min="1" value="1" />
+            </div>
+
+            <div class="field">
+              <label for="trackStatus">Track Status</label>
+              <select id="trackStatus">
+                <option value="Pairing" selected>Pairing</option>
+                <option value="Staging">Staging</option>
+                <option value="Lanes Active">Lanes Active</option>
+                <option value="Finished">Finished</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="button-row">
+            <button id="saveEventBtn" class="primary-btn" type="button">Save Event Settings</button>
+            <button id="callLanesBtn" class="secondary-btn" type="button">Push Call To Lanes</button>
+          </div>
+
+          <div class="field full-width">
+            <label for="callToLanesMessage">Call-to-Lanes Message</label>
+            <input id="callToLanesMessage" type="text" value="Round 1 pairings are live" />
+          </div>
+        </section>
+
+        <section class="glass form-card">
+          <h3>Add Racer</h3>
+
+          <div class="form-grid single">
+            <div class="field">
+              <label for="racerName">Racer Name</label>
+              <input id="racerName" type="text" placeholder="Kareem Browne" />
+            </div>
+
+            <div class="field">
+              <label for="carName">Car Name</label>
+              <input id="carName" type="text" placeholder="Lt. Dan" />
+            </div>
+
+            <div class="field">
+              <label for="carNumber">Car Number</label>
+              <input id="carNumber" type="text" placeholder="#007" />
+            </div>
+
+            <div class="field">
+              <label for="carImageUrl">Car Image URL</label>
+              <input id="carImageUrl" type="text" placeholder="https://..." />
+            </div>
+          </div>
+
+          <div class="button-row">
+            <button id="addRacerBtn" class="primary-btn" type="button">Add Racer</button>
+            <button id="loadDemoBtn" class="secondary-btn" type="button">Load Demo Racers</button>
+          </div>
+        </section>
+
+        <section class="glass list-card">
+          <div class="card-header">
+            <h3>Racers</h3>
+            <div class="pill" id="entriesCount">0 entries</div>
+          </div>
+          <div id="racersList" class="stack-list"></div>
+        </section>
+
+        <section class="glass round-card">
+          <h3>Round Actions</h3>
+
+          <div class="button-row">
+            <button id="generatePairingsBtn" class="primary-btn" type="button">Generate Pairings</button>
+            <button id="clearRoundBtn" class="secondary-btn" type="button">Clear Round</button>
+          </div>
+
+          <p class="helper-text">
+            Pairing logic is random. Byes are randomized from racers who have not already received a bye, unless all active racers have already had one.
+          </p>
+
+          <div id="pairingsList" class="stack-list"></div>
+        </section>
       </div>
     </main>
   </div>
 
-  <script src="board.js"></script>
-
+  <script src="admin.js"></script>
   <script>
-    if (window.SUPABASE_CONFIG && window.SUPABASE_CONFIG.url) {
-      document.getElementById("syncStatus").innerText = "Online Mode ✅";
-    } else {
-      document.getElementById("syncStatus").innerText = "Local Browser Mode ❌";
-    }
+    (function () {
+      const modeTitle = document.getElementById("syncModeTitle");
+      const modeMessage = document.getElementById("syncMessage");
+      const autoBtn = document.getElementById("syncAutoBtn");
+      const onlineBtn = document.getElementById("syncOnlineBtn");
+      const localBtn = document.getElementById("syncLocalBtn");
+
+      function setActive(button) {
+        [autoBtn, onlineBtn, localBtn].forEach(btn => btn.classList.remove("active"));
+        button.classList.add("active");
+      }
+
+      function hasSupabaseConfig() {
+        return !!(
+          window.SUPABASE_CONFIG &&
+          window.SUPABASE_CONFIG.url &&
+          window.SUPABASE_CONFIG.anonKey
+        );
+      }
+
+      function updateMode(selectedMode) {
+        const onlineReady = hasSupabaseConfig();
+
+        if (selectedMode === "local") {
+          modeTitle.textContent = "Local Browser Mode";
+          modeMessage.textContent = "Local mode selected. Changes stay in this browser only.";
+          setActive(localBtn);
+          localStorage.setItem("syncMode", "local");
+          return;
+        }
+
+        if (selectedMode === "online") {
+          if (onlineReady) {
+            modeTitle.textContent = "Online Mode";
+            modeMessage.textContent = "Supabase connected. Admin, racer phones, and board can sync online.";
+          } else {
+            modeTitle.textContent = "Local Browser Mode";
+            modeMessage.textContent = "Selected: online. Supabase not configured, so the app is using local mode.";
+          }
+          setActive(onlineBtn);
+          localStorage.setItem("syncMode", "online");
+          return;
+        }
+
+        if (onlineReady) {
+          modeTitle.textContent = "Online Mode";
+          modeMessage.textContent = "Auto mode detected Supabase and switched to online sync.";
+        } else {
+          modeTitle.textContent = "Local Browser Mode";
+          modeMessage.textContent = "Auto mode did not find Supabase, so the app is using local mode.";
+        }
+        setActive(autoBtn);
+        localStorage.setItem("syncMode", "auto");
+      }
+
+      autoBtn.addEventListener("click", function () {
+        updateMode("auto");
+      });
+
+      onlineBtn.addEventListener("click", function () {
+        updateMode("online");
+      });
+
+      localBtn.addEventListener("click", function () {
+        updateMode("local");
+      });
+
+      const savedMode = localStorage.getItem("syncMode") || "online";
+      updateMode(savedMode);
+    })();
   </script>
 </body>
 </html>
