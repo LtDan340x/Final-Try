@@ -14,9 +14,9 @@ function pairingToCard(pairing) {
   if (pairing.type === 'bye') {
     const racer = pairing.racer1;
     return `
-      <article class="racer-card glass">
+      <article class="racer-card glass winner-card">
         <img src="${racer.carImage}" alt="${racer.carName}" />
-        <span class="bye-badge">Competition Bye</span>
+        <span class="bye-badge">Competition Bye Winner</span>
         <h3>${racer.racerName}</h3>
         <p class="muted">${racer.carName} ${racer.carNumber ? `• ${racer.carNumber}` : ''}</p>
         <p class="muted">This racer received the bye this round.</p>
@@ -26,22 +26,26 @@ function pairingToCard(pairing) {
 
   const lane1 = pairing.lanes.find((l) => l.racerId === pairing.racer1.id)?.lane || '';
   const lane2 = pairing.lanes.find((l) => l.racerId === pairing.racer2.id)?.lane || '';
+  const racer1Winner = pairing.winnerId === pairing.racer1.id;
+  const racer2Winner = pairing.winnerId === pairing.racer2.id;
 
   return `
     <article class="racer-card glass">
-      <div class="versus">
-        <div>
+      <div class="versus winner-versus">
+        <div class="lane-entrant ${racer1Winner ? 'winner-card' : ''}">
           <img src="${pairing.racer1.carImage}" alt="${pairing.racer1.carName}" class="car-thumb" />
           <strong>${pairing.racer1.racerName}</strong>
           <div class="small">${pairing.racer1.carName} ${pairing.racer1.carNumber ? `• ${pairing.racer1.carNumber}` : ''}</div>
           <div class="lane-badge">${lane1} Lane</div>
+          ${racer1Winner ? '<div class="winner-pill">Winner</div>' : ''}
         </div>
         <div class="vs-badge">VS</div>
-        <div class="text-right">
+        <div class="text-right lane-entrant ${racer2Winner ? 'winner-card' : ''}">
           <img src="${pairing.racer2.carImage}" alt="${pairing.racer2.carName}" class="car-thumb" />
           <strong>${pairing.racer2.racerName}</strong>
           <div class="small">${pairing.racer2.carName} ${pairing.racer2.carNumber ? `• ${pairing.racer2.carNumber}` : ''}</div>
           <div class="lane-badge">${lane2} Lane</div>
+          ${racer2Winner ? '<div class="winner-pill">Winner</div>' : ''}
         </div>
       </div>
     </article>

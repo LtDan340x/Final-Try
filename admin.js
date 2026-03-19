@@ -42,10 +42,10 @@ function racerCard(racer) {
 function pairingCard(pairing, idx) {
   if (pairing.type === 'bye') {
     return `
-      <div class="pairing-card">
+      <div class="pairing-card winner-card">
         <div class="panel-head">
           <strong>Pair ${idx + 1}</strong>
-          <span class="bye-badge">Bye</span>
+          <span class="bye-badge">Bye Winner</span>
         </div>
         <div>${pairing.racer1.racerName} • ${pairing.racer1.carName}</div>
       </div>
@@ -54,6 +54,8 @@ function pairingCard(pairing, idx) {
 
   const lane1 = pairing.lanes.find((l) => l.racerId === pairing.racer1.id)?.lane || '';
   const lane2 = pairing.lanes.find((l) => l.racerId === pairing.racer2.id)?.lane || '';
+  const racer1Winner = pairing.winnerId === pairing.racer1.id;
+  const racer2Winner = pairing.winnerId === pairing.racer2.id;
 
   return `
     <div class="pairing-card">
@@ -61,16 +63,23 @@ function pairingCard(pairing, idx) {
         <strong>Pair ${idx + 1}</strong>
         <span class="lane-badge">${lane1} / ${lane2}</span>
       </div>
-      <div class="versus">
-        <div>
+      <div class="versus winner-versus">
+        <div class="lane-entrant ${racer1Winner ? 'winner-card' : ''}">
           <strong>${pairing.racer1.racerName}</strong>
           <div class="small">${pairing.racer1.carName} • ${lane1}</div>
+          ${racer1Winner ? '<div class="winner-pill">Winner</div>' : ''}
         </div>
         <div class="vs-badge">VS</div>
-        <div class="text-right">
+        <div class="text-right lane-entrant ${racer2Winner ? 'winner-card' : ''}">
           <strong>${pairing.racer2.racerName}</strong>
           <div class="small">${pairing.racer2.carName} • ${lane2}</div>
+          ${racer2Winner ? '<div class="winner-pill">Winner</div>' : ''}
         </div>
+      </div>
+      <div class="inline-actions wrap lane-win-actions compact-actions">
+        <button class="btn ${racer1Winner ? 'btn-primary' : 'btn-secondary'}" onclick="setLaneWinner('${pairing.id}', '${pairing.racer1.id}')">${lane1} Lane Winner</button>
+        <button class="btn ${racer2Winner ? 'btn-primary' : 'btn-secondary'}" onclick="setLaneWinner('${pairing.id}', '${pairing.racer2.id}')">${lane2} Lane Winner</button>
+        <button class="btn btn-danger" onclick="clearLaneWinner('${pairing.id}')">Clear</button>
       </div>
     </div>
   `;
@@ -194,6 +203,14 @@ $('clearRoundBtn').addEventListener('click', async () => {
 
 $('nextRoundBtn').addEventListener('click', async () => {
   await AppState.updateState((state) => {
+    if (state.pairings.length) {
+      const winnerIds = new Set(state.pairings.map((pair) => pair.winnerId).filter(Boolean));
+      if (winnerIds.size) {
+        state.racers.forEach((racer) => {
+          racer.active = winnerIds.has(racer.id);
+        });
+      }
+    }
     state.round = (Number(state.round) || 1) + 1;
     state.pairings = [];
     state.status = 'Staging';
@@ -240,3 +257,22 @@ window.removeRacer = async (id) => {
 
 AppState.listen(() => render());
 render();
+
+
+window.setLaneWinner = async (pairingId, racerId) => {
+  await AppState.updateState((state) => {
+    const pairing = state.pairings.find((pair) => pair.id === pairingId);
+    if (pairing) pairing.winnerId = racerId;
+    return state;
+  });
+  render();
+};
+
+window.clearLaneWinner = async (pairingId) => {
+  await AppState.updateState((state) => {
+    const pairing = state.pairings.find((pair) => pair.id === pairingId);
+    if (pairing && pairing.type !== 'bye') pairing.winnerId = null;
+    return state;
+  });
+  render();
+};
