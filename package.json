@@ -1,9 +1,0 @@
-{
-  "name": "htown-hitters-race-app",
-  "version": "2.1.0",
-  "private": true,
-  "description": "H-Town Hitters Race App with admin, racer, and multiview board screens.",
-  "dependencies": {
-    "@netlify/blobs": "^8.1.0"
-  }
-}
