@@ -1,8 +1,6 @@
-const SUPABASE_URL = "https://bzikdnrhimflunbihhu.supabase.co";
-
-const SUPABASE_ANON_KEY = "sb_publishable_hDM8q3hdp2a9466owLSA_pVrM...";
-
 window.SUPABASE_CONFIG = {
-  url: SUPABASE_URL,
-  key: SUPABASE_ANON_KEY
+  url: "https://bzikdnrhimflunbihhu.supabase.co",
+  anonKey: "sb_publishable_hDM-8q3hbp2A9466owLSA_pVrM...",
+  table: "race_state",
+  rowId: 1
 };
