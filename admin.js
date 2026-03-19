@@ -1,143 +1,242 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>H-Town Hitters Race App - Admin</title>
-  <link rel="stylesheet" href="styles.css" />
-  <script src="supabase-config.js"></script>
-</head>
-<body>
-  <div class="app-shell">
-    <aside class="side-panel glass">
-      <div class="brand-block">
-        <div class="brand-kicker">B STYLE</div>
-        <h1>H-Town Hitters</h1>
-        <p>Race Control</p>
+const $ = (id) => document.getElementById(id);
+
+const refs = {
+  eventName: $('eventName'),
+  adminCode: $('adminCode'),
+  roundNumber: $('roundNumber'),
+  eventStatus: $('eventStatus'),
+  callMessage: $('callMessage'),
+  racerName: $('racerName'),
+  carName: $('carName'),
+  carNumber: $('carNumber'),
+  carImage: $('carImage'),
+  racerList: $('racerList'),
+  pairingsList: $('pairingsList'),
+  racerCount: $('racerCount'),
+  syncMode: $('syncMode'),
+  shareLink: $('shareLink'),
+  syncHint: $('syncHint'),
+  autoModeBtn: $('autoModeBtn'),
+  onlineModeBtn: $('onlineModeBtn'),
+  localModeBtn: $('localModeBtn')
+};
+
+let currentState = null;
+
+function racerCard(racer) {
+  return `
+    <div class="entry-card">
+      <div class="entry-meta">
+        <strong>${racer.racerName}</strong>
+        <div class="entry-sub">${racer.carName} ${racer.carNumber ? `• ${racer.carNumber}` : ''}</div>
+        <div class="small">Bye used: ${racer.hadBye ? 'Yes' : 'No'}</div>
       </div>
-
-      <nav class="nav-stack">
-        <a class="nav-link active" href="admin.html">Admin</a>
-        <a class="nav-link" href="racer.html">Racer View</a>
-        <a class="nav-link" href="board.html">MultiView Board</a>
-        <a class="nav-link" href="index.html">Home</a>
-      </nav>
-
-      <div class="sync-box">
-        <h4>SYNC MODE</h4>
-        <p id="syncStatus">Checking...</p>
+      <div class="entry-actions">
+        <button class="btn btn-secondary" onclick="toggleActive('${racer.id}')">${racer.active === false ? 'Activate' : 'Scratch'}</button>
+        <button class="btn btn-danger" onclick="removeRacer('${racer.id}')">Delete</button>
       </div>
+    </div>
+  `;
+}
 
-      <div class="share-box">
-        <h4>SHARE LINK</h4>
-        <p>https://htxhitters.netlify.app/admin.html</p>
+function pairingCard(pairing, idx) {
+  if (pairing.type === 'bye') {
+    return `
+      <div class="pairing-card">
+        <div class="panel-head">
+          <strong>Pair ${idx + 1}</strong>
+          <span class="bye-badge">Bye</span>
+        </div>
+        <div>${pairing.racer1.racerName} • ${pairing.racer1.carName}</div>
       </div>
-    </aside>
+    `;
+  }
 
-    <main class="main-panel">
-      <h2>Round Manager</h2>
+  const lane1 = pairing.lanes.find((l) => l.racerId === pairing.racer1.id)?.lane || '';
+  const lane2 = pairing.lanes.find((l) => l.racerId === pairing.racer2.id)?.lane || '';
 
-      <div class="card">
-        <h3>Event Setup</h3>
-
-        <label for="eventName">Event Name</label>
-        <input id="eventName" value="H-Town Hitters Race App" />
-
-        <label for="currentRound">Current Round</label>
-        <input id="currentRound" type="number" value="1" />
-
-        <label for="trackStatus">Track Status</label>
-        <select id="trackStatus">
-          <option value="Pairing">Pairing</option>
-          <option value="Staging">Staging</option>
-          <option value="Call To Lanes">Call To Lanes</option>
-          <option value="Completed">Completed</option>
-        </select>
-
-        <button onclick="saveEventSettings()">Save Event Settings</button>
-        <button onclick="pushCallToLanes()">Push Call To Lanes</button>
-
-        <label for="callToLanesMessage">Call-to-Lanes Message</label>
-        <input id="callToLanesMessage" value="Round 1 pairings are live" />
+  return `
+    <div class="pairing-card">
+      <div class="panel-head">
+        <strong>Pair ${idx + 1}</strong>
+        <span class="lane-badge">${lane1} / ${lane2}</span>
       </div>
-
-      <div class="card">
-        <h3>Add Racer</h3>
-
-        <label for="racerName">Racer Name</label>
-        <input id="racerName" placeholder="Racer Name" />
-
-        <label for="carName">Car Name</label>
-        <input id="carName" placeholder="Car Name" />
-
-        <label for="carNumber">Car Number</label>
-        <input id="carNumber" placeholder="#007" />
-
-        <label for="carImageUrl">Car Image URL</label>
-        <input id="carImageUrl" placeholder="https://..." />
-
-        <button onclick="addRacer()">Add Racer</button>
-        <button onclick="loadDemoRacers()">Load Demo Racers</button>
+      <div class="versus">
+        <div>
+          <strong>${pairing.racer1.racerName}</strong>
+          <div class="small">${pairing.racer1.carName} • ${lane1}</div>
+        </div>
+        <div class="vs-badge">VS</div>
+        <div class="text-right">
+          <strong>${pairing.racer2.racerName}</strong>
+          <div class="small">${pairing.racer2.carName} • ${lane2}</div>
+        </div>
       </div>
+    </div>
+  `;
+}
 
-      <div class="card">
-        <h3>Racers</h3>
-        <div id="racersList">No racers yet.</div>
-      </div>
+async function paintSyncUi() {
+  const resolved = await AppState.resolveTransportMode();
+  const pref = resolved.preferred;
+  refs.syncMode.textContent = resolved.actual === 'online' ? 'Online Live Sync' : 'Local Browser Mode';
+  refs.syncMode.className = `status-value ${resolved.actual === 'online' ? 'online' : 'local'}`;
+  refs.syncHint.textContent = resolved.remoteAvailable
+    ? `Selected: ${pref}. Supabase connected.`
+    : `Selected: ${pref}. Supabase not configured, so the app is using local mode.`;
 
-      <div class="card">
-        <h3>Round Actions</h3>
-        <button onclick="generatePairings()">Generate Pairings</button>
-        <button onclick="clearRound()">Clear Round</button>
-        <div id="pairingsList">No pairings yet.</div>
-      </div>
-    </main>
-  </div>
+  [refs.autoModeBtn, refs.onlineModeBtn, refs.localModeBtn].forEach((btn) => btn.classList.remove('active'));
+  if (pref === 'auto') refs.autoModeBtn.classList.add('active');
+  if (pref === 'online') refs.onlineModeBtn.classList.add('active');
+  if (pref === 'local') refs.localModeBtn.classList.add('active');
+}
 
-  <script src="admin.js"></script>
-  <script>
-    const syncStatus = document.getElementById("syncStatus");
-    if (window.SUPABASE_CONFIG && window.SUPABASE_CONFIG.url && window.SUPABASE_CONFIG.anonKey) {
-      syncStatus.innerText = "Online Mode ✅";
-    } else {
-      syncStatus.innerText = "Local Browser Mode";
-    }
+async function render() {
+  currentState = await AppState.getState();
+  refs.eventName.value = currentState.eventName;
+  refs.adminCode.value = currentState.adminCode || '';
+  refs.roundNumber.value = currentState.round || 1;
+  refs.eventStatus.value = currentState.status || 'Staging';
+  refs.callMessage.value = currentState.callMessage || '';
+  refs.racerCount.textContent = currentState.racers.length;
+  refs.shareLink.textContent = `${location.origin}${location.pathname.replace('admin.html', 'racer.html')}`;
 
-    function saveEventSettings() {
-      if (typeof window.saveEventSettingsHandler === "function") {
-        window.saveEventSettingsHandler();
+  refs.racerList.innerHTML = currentState.racers.length
+    ? currentState.racers.map(racerCard).join('')
+    : '<div class="empty-state">No racers added yet.</div>';
+
+  refs.pairingsList.innerHTML = currentState.pairings.length
+    ? currentState.pairings.map(pairingCard).join('')
+    : '<div class="empty-state">No pairings generated yet.</div>';
+
+  await paintSyncUi();
+}
+
+async function setSyncMode(mode) {
+  AppState.setPreferredSyncMode(mode);
+  await AppState.isRemoteAvailable(true);
+  render();
+}
+
+refs.autoModeBtn.addEventListener('click', () => setSyncMode('auto'));
+refs.onlineModeBtn.addEventListener('click', () => setSyncMode('online'));
+refs.localModeBtn.addEventListener('click', () => setSyncMode('local'));
+
+$('saveEventBtn').addEventListener('click', async () => {
+  await AppState.updateState((state) => {
+    state.eventName = refs.eventName.value.trim() || 'H-Town Hitters Race App';
+    state.adminCode = refs.adminCode.value.trim();
+    state.round = Number(refs.roundNumber.value) || 1;
+    state.status = refs.eventStatus.value;
+    state.callMessage = refs.callMessage.value.trim();
+    return state;
+  });
+  render();
+});
+
+$('announceBtn').addEventListener('click', async () => {
+  await AppState.updateState((state) => {
+    state.status = 'Calling to Lanes';
+    state.callMessage = refs.callMessage.value.trim() || `Round ${state.round} to the lanes now`;
+    return state;
+  });
+  render();
+});
+
+$('addRacerBtn').addEventListener('click', async () => {
+  const racer = AppState.makeRacer({
+    racerName: refs.racerName.value,
+    carName: refs.carName.value,
+    carNumber: refs.carNumber.value,
+    carImage: refs.carImage.value
+  });
+  await AppState.updateState((state) => {
+    state.racers.push(racer);
+    return state;
+  });
+  refs.racerName.value = '';
+  refs.carName.value = '';
+  refs.carNumber.value = '';
+  refs.carImage.value = '';
+  render();
+});
+
+$('demoDataBtn').addEventListener('click', async () => {
+  await AppState.seedDemoData();
+  render();
+});
+
+$('pairRoundBtn').addEventListener('click', async () => {
+  await AppState.updateState((state) => {
+    state.pairings = AppState.buildPairings(state.racers);
+    state.pairings.forEach((pair) => {
+      if (pair.type === 'bye') {
+        const racer = state.racers.find((r) => r.id === pair.racer1.id);
+        if (racer) racer.hadBye = true;
       }
-    }
+    });
+    state.status = 'Pairing';
+    state.callMessage = `Round ${state.round} pairings are live`;
+    return state;
+  });
+  render();
+});
 
-    function pushCallToLanes() {
-      if (typeof window.pushCallToLanesHandler === "function") {
-        window.pushCallToLanesHandler();
-      }
-    }
+$('clearRoundBtn').addEventListener('click', async () => {
+  await AppState.updateState((state) => {
+    state.pairings = [];
+    state.callMessage = '';
+    state.status = 'Staging';
+    return state;
+  });
+  render();
+});
 
-    function addRacer() {
-      if (typeof window.addRacerHandler === "function") {
-        window.addRacerHandler();
-      }
-    }
+$('nextRoundBtn').addEventListener('click', async () => {
+  await AppState.updateState((state) => {
+    state.round = (Number(state.round) || 1) + 1;
+    state.pairings = [];
+    state.status = 'Staging';
+    state.callMessage = '';
+    return state;
+  });
+  render();
+});
 
-    function loadDemoRacers() {
-      if (typeof window.loadDemoRacersHandler === "function") {
-        window.loadDemoRacersHandler();
-      }
-    }
+$('resetBtn').addEventListener('click', async () => {
+  const sure = confirm('Reset the entire event, racers, and pairings?');
+  if (!sure) return;
+  await AppState.setState({
+    eventName: 'H-Town Hitters Race App',
+    adminCode: '',
+    round: 1,
+    status: 'Staging',
+    callMessage: '',
+    racers: [],
+    pairings: []
+  });
+  render();
+});
 
-    function generatePairings() {
-      if (typeof window.generatePairingsHandler === "function") {
-        window.generatePairingsHandler();
-      }
-    }
+$('refreshBtn').addEventListener('click', render);
 
-    function clearRound() {
-      if (typeof window.clearRoundHandler === "function") {
-        window.clearRoundHandler();
-      }
-    }
-  </script>
-</body>
-</html>
+window.toggleActive = async (id) => {
+  await AppState.updateState((state) => {
+    const racer = state.racers.find((r) => r.id === id);
+    if (racer) racer.active = racer.active === false ? true : false;
+    return state;
+  });
+  render();
+};
+
+window.removeRacer = async (id) => {
+  await AppState.updateState((state) => {
+    state.racers = state.racers.filter((r) => r.id !== id);
+    state.pairings = state.pairings.filter((p) => p.racer1?.id !== id && p.racer2?.id !== id);
+    return state;
+  });
+  render();
+};
+
+AppState.listen(() => render());
+render();
