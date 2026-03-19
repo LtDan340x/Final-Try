@@ -1,35 +1,87 @@
+const el = {
+  boardEventName: document.getElementById('boardEventName'),
+  boardRound: document.getElementById('boardRound'),
+  boardStatus: document.getElementById('boardStatus'),
+  boardAlert: document.getElementById('boardAlert'),
+  boardPairings: document.getElementById('boardPairings'),
+  boardLanes: document.getElementById('boardLanes')
+};
 
-(function () {
-  const app = window.RaceApp;
-  const mode = "online";
+function renderBoardPairing(pairing, idx) {
+  if (pairing.type === 'bye') {
+    return `
+      <div class="pairing-card">
+        <div class="panel-head"><strong>Pair ${idx + 1}</strong><span class="bye-badge">Bye</span></div>
+        <div>${pairing.racer1.racerName} • ${pairing.racer1.carName}</div>
+      </div>
+    `;
+  }
+  return `
+    <div class="pairing-card">
+      <div class="panel-head"><strong>Pair ${idx + 1}</strong><span class="lane-badge">Live</span></div>
+      <div class="versus">
+        <div>
+          <strong>${pairing.racer1.racerName}</strong>
+          <div class="small">${pairing.racer1.carName}</div>
+        </div>
+        <div class="vs-badge">VS</div>
+        <div class="text-right">
+          <strong>${pairing.racer2.racerName}</strong>
+          <div class="small">${pairing.racer2.carName}</div>
+        </div>
+      </div>
+    </div>
+  `;
+}
 
-  function byId(id) { return document.getElementById(id); }
-
-  function render(state) {
-    const syncStatus = byId("syncStatus");
-    if (syncStatus) syncStatus.textContent = app.hasSupabase() ? "Online Mode ✅" : "Local Browser Mode";
-    const status = byId("boardTrackStatus");
-    const call = byId("boardCallMessage");
-    const pairings = byId("boardPairings");
-    if (status) status.textContent = state.trackStatus || "Waiting for updates...";
-    if (call) call.textContent = state.callToLanesMessage || "No active call-to-lanes message.";
-    if (!pairings) return;
-    if (!state.pairings || state.pairings.length === 0) {
-      pairings.innerHTML = "Waiting for pairings...";
-      return;
-    }
-    pairings.innerHTML = state.pairings.map(function (p, i) {
-      return '<div class="pairing-card"><strong>Pair ' + (i + 1) + '</strong><br/>' +
-        (p.left ? p.left.name : "—") + ' vs ' + (p.right ? p.right.name : "BYE") + '</div>';
-    }).join("");
+function renderLaneCard(pairing) {
+  if (pairing.type === 'bye') {
+    return `
+      <div class="lane-card">
+        <div class="panel-head"><strong>Bye Lane</strong><span class="bye-badge">Auto</span></div>
+        <div>${pairing.racer1.racerName}</div>
+      </div>
+    `;
   }
 
-  async function refreshState() {
-    const state = await app.getState(mode);
-    render(state);
-  }
+  const left = pairing.lanes.find((l) => l.lane === 'Left');
+  const right = pairing.lanes.find((l) => l.lane === 'Right');
+  const leftRacer = [pairing.racer1, pairing.racer2].find((r) => r.id === left?.racerId);
+  const rightRacer = [pairing.racer1, pairing.racer2].find((r) => r.id === right?.racerId);
+  return `
+    <div class="lane-card">
+      <div class="versus">
+        <div>
+          <span class="lane-badge">Left</span>
+          <strong>${leftRacer?.racerName || '-'}</strong>
+          <div class="small">${leftRacer?.carName || ''}</div>
+        </div>
+        <div class="vs-badge">|</div>
+        <div class="text-right">
+          <span class="lane-badge">Right</span>
+          <strong>${rightRacer?.racerName || '-'}</strong>
+          <div class="small">${rightRacer?.carName || ''}</div>
+        </div>
+      </div>
+    </div>
+  `;
+}
 
-  if (app.bc) app.bc.onmessage = function () { refreshState(); };
-  refreshState();
-  setInterval(refreshState, 2500);
-})();
+async function renderBoard() {
+  const state = await AppState.getState();
+  el.boardEventName.textContent = state.eventName || 'H-Town Hitters Race App';
+  el.boardRound.textContent = state.round || 1;
+  el.boardStatus.textContent = state.status || 'Staging';
+  el.boardPairings.innerHTML = state.pairings.length ? state.pairings.map(renderBoardPairing).join('') : '<div class="empty-state">Waiting for pairings.</div>';
+  el.boardLanes.innerHTML = state.pairings.length ? state.pairings.map(renderLaneCard).join('') : '<div class="empty-state">Lane board will show after pairings are generated.</div>';
+  if (state.callMessage) {
+    el.boardAlert.classList.remove('hidden');
+    el.boardAlert.textContent = state.callMessage;
+  } else {
+    el.boardAlert.classList.add('hidden');
+  }
+}
+
+AppState.listen(() => renderBoard());
+setInterval(renderBoard, 1000);
+renderBoard();

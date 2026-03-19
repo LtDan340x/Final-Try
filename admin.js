@@ -1,199 +1,242 @@
+const $ = (id) => document.getElementById(id);
 
-(function () {
-  const app = window.RaceApp;
-  const mode = "online";
-  let state = app.clone(app.DEFAULT_STATE);
+const refs = {
+  eventName: $('eventName'),
+  adminCode: $('adminCode'),
+  roundNumber: $('roundNumber'),
+  eventStatus: $('eventStatus'),
+  callMessage: $('callMessage'),
+  racerName: $('racerName'),
+  carName: $('carName'),
+  carNumber: $('carNumber'),
+  carImage: $('carImage'),
+  racerList: $('racerList'),
+  pairingsList: $('pairingsList'),
+  racerCount: $('racerCount'),
+  syncMode: $('syncMode'),
+  shareLink: $('shareLink'),
+  syncHint: $('syncHint'),
+  autoModeBtn: $('autoModeBtn'),
+  onlineModeBtn: $('onlineModeBtn'),
+  localModeBtn: $('localModeBtn')
+};
 
-  const els = {
-    syncStatus: document.getElementById("syncStatus"),
-    eventName: document.getElementById("eventName"),
-    currentRound: document.getElementById("currentRound"),
-    trackStatus: document.getElementById("trackStatus"),
-    callToLanesMessage: document.getElementById("callToLanesMessage"),
-    racerName: document.getElementById("racerName"),
-    carName: document.getElementById("carName"),
-    carNumber: document.getElementById("carNumber"),
-    carImageUrl: document.getElementById("carImageUrl"),
-    racersList: document.getElementById("racersList"),
-    pairingsList: document.getElementById("pairingsList")
-  };
+let currentState = null;
 
-  function escapeHtml(s) {
-    return String(s || "").replace(/[&<>"]/g, function (ch) {
-      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;" }[ch];
-    });
+function racerCard(racer) {
+  return `
+    <div class="entry-card">
+      <div class="entry-meta">
+        <strong>${racer.racerName}</strong>
+        <div class="entry-sub">${racer.carName} ${racer.carNumber ? `• ${racer.carNumber}` : ''}</div>
+        <div class="small">Bye used: ${racer.hadBye ? 'Yes' : 'No'}</div>
+      </div>
+      <div class="entry-actions">
+        <button class="btn btn-secondary" onclick="toggleActive('${racer.id}')">${racer.active === false ? 'Activate' : 'Scratch'}</button>
+        <button class="btn btn-danger" onclick="removeRacer('${racer.id}')">Delete</button>
+      </div>
+    </div>
+  `;
+}
+
+function pairingCard(pairing, idx) {
+  if (pairing.type === 'bye') {
+    return `
+      <div class="pairing-card">
+        <div class="panel-head">
+          <strong>Pair ${idx + 1}</strong>
+          <span class="bye-badge">Bye</span>
+        </div>
+        <div>${pairing.racer1.racerName} • ${pairing.racer1.carName}</div>
+      </div>
+    `;
   }
 
-  function racerCard(r) {
-    return '<div class="racer-card"><div><strong>' + escapeHtml(r.name) + '</strong><br/>' +
-      escapeHtml(r.car || "Race Car") + ' ' + escapeHtml(r.number || "") + '<br/>Bye used: ' +
-      (r.byeUsed ? "Yes" : "No") + '</div><div><button data-delete-racer="' + r.id + '">Delete</button></div></div>';
-  }
+  const lane1 = pairing.lanes.find((l) => l.racerId === pairing.racer1.id)?.lane || '';
+  const lane2 = pairing.lanes.find((l) => l.racerId === pairing.racer2.id)?.lane || '';
 
-  function pairingCard(pair, index) {
-    const leftName = pair.left ? pair.left.name : "—";
-    const rightName = pair.right ? pair.right.name : "BYE";
-    let winnerText = "Not selected";
-    if (pair.winnerId) {
-      winnerText = (pair.left && pair.left.id === pair.winnerId) ? leftName : rightName;
-    }
-    return '<div class="pairing-card" data-pair-id="' + pair.id + '">' +
-      '<div><strong>Pair ' + (index + 1) + '</strong></div>' +
-      '<div>' + escapeHtml(leftName) + ' vs ' + escapeHtml(rightName) + '</div>' +
-      '<div>Winner: ' + escapeHtml(winnerText) + '</div>' +
-      '<div class="button-row" style="margin-top:8px;">' +
-      '<button data-win="' + pair.id + '" data-side="left"' + (!pair.left ? ' disabled' : '') + '>Left Wins</button>' +
-      '<button data-win="' + pair.id + '" data-side="right"' + (!pair.right ? ' disabled' : '') + '>Right Wins</button>' +
-      '<button data-undo="' + pair.id + '">Undo</button>' +
-      '</div></div>';
-  }
+  return `
+    <div class="pairing-card">
+      <div class="panel-head">
+        <strong>Pair ${idx + 1}</strong>
+        <span class="lane-badge">${lane1} / ${lane2}</span>
+      </div>
+      <div class="versus">
+        <div>
+          <strong>${pairing.racer1.racerName}</strong>
+          <div class="small">${pairing.racer1.carName} • ${lane1}</div>
+        </div>
+        <div class="vs-badge">VS</div>
+        <div class="text-right">
+          <strong>${pairing.racer2.racerName}</strong>
+          <div class="small">${pairing.racer2.carName} • ${lane2}</div>
+        </div>
+      </div>
+    </div>
+  `;
+}
 
-  function render() {
-    if (els.eventName) els.eventName.value = state.eventName || "";
-    if (els.currentRound) els.currentRound.value = state.currentRound || 1;
-    if (els.trackStatus) els.trackStatus.value = state.trackStatus || "Pairing";
-    if (els.callToLanesMessage) els.callToLanesMessage.value = state.callToLanesMessage || "";
+async function paintSyncUi() {
+  const resolved = await AppState.resolveTransportMode();
+  const pref = resolved.preferred;
+  refs.syncMode.textContent = resolved.actual === 'online' ? 'Online Live Sync' : 'Local Browser Mode';
+  refs.syncMode.className = `status-value ${resolved.actual === 'online' ? 'online' : 'local'}`;
+  refs.syncHint.textContent = resolved.remoteAvailable
+    ? `Selected: ${pref}. Supabase connected.`
+    : `Selected: ${pref}. Supabase not configured, so the app is using local mode.`;
 
-    if (els.racersList) {
-      els.racersList.innerHTML = state.racers.length ? state.racers.map(racerCard).join("") : "No racers yet.";
-    }
-    if (els.pairingsList) {
-      els.pairingsList.innerHTML = state.pairings.length ? state.pairings.map(pairingCard).join("") : "No pairings yet.";
-    }
-    if (els.syncStatus) {
-      els.syncStatus.textContent = app.hasSupabase() ? "Online Mode ✅" : "Local Browser Mode";
-    }
-  }
+  [refs.autoModeBtn, refs.onlineModeBtn, refs.localModeBtn].forEach((btn) => btn.classList.remove('active'));
+  if (pref === 'auto') refs.autoModeBtn.classList.add('active');
+  if (pref === 'online') refs.onlineModeBtn.classList.add('active');
+  if (pref === 'local') refs.localModeBtn.classList.add('active');
+}
 
-  async function refreshState() {
-    state = await app.getState(mode);
-    render();
-  }
+async function render() {
+  currentState = await AppState.getState();
+  refs.eventName.value = currentState.eventName;
+  refs.adminCode.value = currentState.adminCode || '';
+  refs.roundNumber.value = currentState.round || 1;
+  refs.eventStatus.value = currentState.status || 'Staging';
+  refs.callMessage.value = currentState.callMessage || '';
+  refs.racerCount.textContent = currentState.racers.length;
+  refs.shareLink.textContent = `${location.origin}${location.pathname.replace('admin.html', 'racer.html')}`;
 
-  async function persist() {
-    state = await app.saveState(state, mode);
-    render();
-  }
+  refs.racerList.innerHTML = currentState.racers.length
+    ? currentState.racers.map(racerCard).join('')
+    : '<div class="empty-state">No racers added yet.</div>';
 
-  async function saveEventSettingsHandler() {
-    state.eventName = (els.eventName && els.eventName.value.trim()) || "H-Town Hitters Race App";
-    state.currentRound = parseInt((els.currentRound && els.currentRound.value) || "1", 10);
-    state.trackStatus = (els.trackStatus && els.trackStatus.value) || "Pairing";
-    state.callToLanesMessage = (els.callToLanesMessage && els.callToLanesMessage.value) || "";
-    await persist();
-    alert("Event settings saved");
-  }
+  refs.pairingsList.innerHTML = currentState.pairings.length
+    ? currentState.pairings.map(pairingCard).join('')
+    : '<div class="empty-state">No pairings generated yet.</div>';
 
-  async function pushCallToLanesHandler() {
-    state.callToLanesMessage = (els.callToLanesMessage && els.callToLanesMessage.value) || "";
-    state.trackStatus = "Call To Lanes";
-    await persist();
-    alert("Call-to-lanes sent");
-  }
+  await paintSyncUi();
+}
 
-  async function addRacerHandler() {
-    const name = els.racerName && els.racerName.value.trim();
-    if (!name) return alert("Enter racer name");
-    state.racers.push({
-      id: app.uid(),
-      name: name,
-      car: (els.carName && els.carName.value.trim()) || "Race Car",
-      number: (els.carNumber && els.carNumber.value.trim()) || "",
-      image: (els.carImageUrl && els.carImageUrl.value.trim()) || "",
-      byeUsed: false,
-      eliminated: false
-    });
-    if (els.racerName) els.racerName.value = "";
-    if (els.carName) els.carName.value = "";
-    if (els.carNumber) els.carNumber.value = "";
-    if (els.carImageUrl) els.carImageUrl.value = "";
-    await persist();
-  }
+async function setSyncMode(mode) {
+  AppState.setPreferredSyncMode(mode);
+  await AppState.isRemoteAvailable(true);
+  render();
+}
 
-  async function loadDemoRacersHandler() {
-    state.racers = [
-      { id: app.uid(), name: "kb", car: "Race Car", number: "", image: "", byeUsed: false, eliminated: false },
-      { id: app.uid(), name: "ant", car: "Race Car", number: "", image: "", byeUsed: false, eliminated: false },
-      { id: app.uid(), name: "phil", car: "Race Car", number: "", image: "", byeUsed: false, eliminated: false },
-      { id: app.uid(), name: "brad", car: "Race Car", number: "", image: "", byeUsed: false, eliminated: false },
-      { id: app.uid(), name: "luke", car: "Race Car", number: "", image: "", byeUsed: false, eliminated: false }
-    ];
-    state.pairings = [];
-    state.winners = [];
-    await persist();
-  }
+refs.autoModeBtn.addEventListener('click', () => setSyncMode('auto'));
+refs.onlineModeBtn.addEventListener('click', () => setSyncMode('online'));
+refs.localModeBtn.addEventListener('click', () => setSyncMode('local'));
 
-  async function generatePairingsHandler() {
-    state.pairings = app.generatePairingsFromRacers(state.racers);
-    state.winners = app.winnersFromPairings(state.pairings);
-    state.trackStatus = "Pairing";
-    await persist();
-  }
-
-  async function clearRoundHandler() {
-    state.pairings = [];
-    state.winners = [];
-    await persist();
-  }
-
-  async function markWinner(pairId, side) {
-    const pair = state.pairings.find(function (p) { return p.id === pairId; });
-    if (!pair) return;
-    if (side === "left" && pair.left) pair.winnerId = pair.left.id;
-    if (side === "right" && pair.right) pair.winnerId = pair.right.id;
-    pair.completed = !!pair.winnerId;
-    state.winners = app.winnersFromPairings(state.pairings);
-
-    if (app.allPairingsComplete(state.pairings)) {
-      const nextRoundRacers = state.winners.map(function (w) {
-        return Object.assign({}, w, { eliminated: false });
-      });
-      state.currentRound = Number(state.currentRound || 1) + 1;
-      state.racers = nextRoundRacers;
-      state.pairings = app.generatePairingsFromRacers(nextRoundRacers);
-      state.winners = app.winnersFromPairings(state.pairings);
-      state.trackStatus = "Pairing";
-      state.callToLanesMessage = "Round " + state.currentRound + " pairings are live";
-    }
-    await persist();
-  }
-
-  async function undoWinner(pairId) {
-    const pair = state.pairings.find(function (p) { return p.id === pairId; });
-    if (!pair || pair.bye) return;
-    pair.winnerId = null;
-    pair.completed = false;
-    state.winners = app.winnersFromPairings(state.pairings);
-    await persist();
-  }
-
-  document.addEventListener("click", async function (e) {
-    const delId = e.target.getAttribute("data-delete-racer");
-    if (delId) {
-      state.racers = state.racers.filter(function (r) { return r.id !== delId; });
-      await persist();
-      return;
-    }
-    const pairId = e.target.getAttribute("data-win");
-    if (pairId) {
-      await markWinner(pairId, e.target.getAttribute("data-side"));
-      return;
-    }
-    const undoId = e.target.getAttribute("data-undo");
-    if (undoId) {
-      await undoWinner(undoId);
-    }
+$('saveEventBtn').addEventListener('click', async () => {
+  await AppState.updateState((state) => {
+    state.eventName = refs.eventName.value.trim() || 'H-Town Hitters Race App';
+    state.adminCode = refs.adminCode.value.trim();
+    state.round = Number(refs.roundNumber.value) || 1;
+    state.status = refs.eventStatus.value;
+    state.callMessage = refs.callMessage.value.trim();
+    return state;
   });
+  render();
+});
 
-  window.saveEventSettingsHandler = saveEventSettingsHandler;
-  window.pushCallToLanesHandler = pushCallToLanesHandler;
-  window.addRacerHandler = addRacerHandler;
-  window.loadDemoRacersHandler = loadDemoRacersHandler;
-  window.generatePairingsHandler = generatePairingsHandler;
-  window.clearRoundHandler = clearRoundHandler;
+$('announceBtn').addEventListener('click', async () => {
+  await AppState.updateState((state) => {
+    state.status = 'Calling to Lanes';
+    state.callMessage = refs.callMessage.value.trim() || `Round ${state.round} to the lanes now`;
+    return state;
+  });
+  render();
+});
 
-  if (app.bc) {
-    app.bc.onmessage = function () { refreshState(); };
-  }
-  refreshState();
-})();
+$('addRacerBtn').addEventListener('click', async () => {
+  const racer = AppState.makeRacer({
+    racerName: refs.racerName.value,
+    carName: refs.carName.value,
+    carNumber: refs.carNumber.value,
+    carImage: refs.carImage.value
+  });
+  await AppState.updateState((state) => {
+    state.racers.push(racer);
+    return state;
+  });
+  refs.racerName.value = '';
+  refs.carName.value = '';
+  refs.carNumber.value = '';
+  refs.carImage.value = '';
+  render();
+});
+
+$('demoDataBtn').addEventListener('click', async () => {
+  await AppState.seedDemoData();
+  render();
+});
+
+$('pairRoundBtn').addEventListener('click', async () => {
+  await AppState.updateState((state) => {
+    state.pairings = AppState.buildPairings(state.racers);
+    state.pairings.forEach((pair) => {
+      if (pair.type === 'bye') {
+        const racer = state.racers.find((r) => r.id === pair.racer1.id);
+        if (racer) racer.hadBye = true;
+      }
+    });
+    state.status = 'Pairing';
+    state.callMessage = `Round ${state.round} pairings are live`;
+    return state;
+  });
+  render();
+});
+
+$('clearRoundBtn').addEventListener('click', async () => {
+  await AppState.updateState((state) => {
+    state.pairings = [];
+    state.callMessage = '';
+    state.status = 'Staging';
+    return state;
+  });
+  render();
+});
+
+$('nextRoundBtn').addEventListener('click', async () => {
+  await AppState.updateState((state) => {
+    state.round = (Number(state.round) || 1) + 1;
+    state.pairings = [];
+    state.status = 'Staging';
+    state.callMessage = '';
+    return state;
+  });
+  render();
+});
+
+$('resetBtn').addEventListener('click', async () => {
+  const sure = confirm('Reset the entire event, racers, and pairings?');
+  if (!sure) return;
+  await AppState.setState({
+    eventName: 'H-Town Hitters Race App',
+    adminCode: '',
+    round: 1,
+    status: 'Staging',
+    callMessage: '',
+    racers: [],
+    pairings: []
+  });
+  render();
+});
+
+$('refreshBtn').addEventListener('click', render);
+
+window.toggleActive = async (id) => {
+  await AppState.updateState((state) => {
+    const racer = state.racers.find((r) => r.id === id);
+    if (racer) racer.active = racer.active === false ? true : false;
+    return state;
+  });
+  render();
+};
+
+window.removeRacer = async (id) => {
+  await AppState.updateState((state) => {
+    state.racers = state.racers.filter((r) => r.id !== id);
+    state.pairings = state.pairings.filter((p) => p.racer1?.id !== id && p.racer2?.id !== id);
+    return state;
+  });
+  render();
+};
+
+AppState.listen(() => render());
+render();

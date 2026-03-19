@@ -1,6 +1,6 @@
 window.SUPABASE_CONFIG = {
-  url: "https://bzikdnrhimflunbihhu.supabase.co",
-  anonKey: "sb_publishable_hDM-8q3hbp2A9466owLSA_pVrM...",
+  url: "https://YOUR-PROJECT.supabase.co",
+  anonKey: "YOUR_FULL_sb_publishable_KEY_HERE",
   table: "race_state",
   rowId: 1
 };

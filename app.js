@@ -1,132 +1,311 @@
+const AppState = (() => {
+  const STORAGE_KEY = 'htown-hitters-race-state-v21';
+  const SYNC_MODE_KEY = 'htown-hitters-sync-mode-v21';
+  const bc = 'BroadcastChannel' in window ? new BroadcastChannel('htown_hitters_race_sync_v21') : null;
 
-(function (global) {
-  const STORAGE_KEY = "htx_race_state_v22_supabase";
-  const CHANNEL_NAME = "htx_race_channel_v22_supabase";
-  const DEFAULT_STATE = {
-    eventName: "H-Town Hitters Race App",
-    currentRound: 1,
-    trackStatus: "Pairing",
-    callToLanesMessage: "Round 1 pairings are live",
+  const fallbackState = {
+    eventName: 'H-Town Hitters Race App',
+    adminCode: '',
+    round: 1,
+    status: 'Staging',
+    callMessage: '',
+    updatedAt: Date.now(),
     racers: [],
-    pairings: [],
-    winners: [],
-    updatedAt: null
+    pairings: []
   };
-  const bc = ("BroadcastChannel" in window) ? new BroadcastChannel(CHANNEL_NAME) : null;
 
-  function clone(obj) { return JSON.parse(JSON.stringify(obj)); }
+  const uid = () => Math.random().toString(36).slice(2, 10);
+  const clone = (v) => JSON.parse(JSON.stringify(v));
+  let remoteCache = { ok: null, checkedAt: 0 };
+
   function normalize(state) {
-    const next = Object.assign({}, clone(DEFAULT_STATE), state || {});
-    if (!Array.isArray(next.racers)) next.racers = [];
-    if (!Array.isArray(next.pairings)) next.pairings = [];
-    if (!Array.isArray(next.winners)) next.winners = [];
+    const merged = { ...fallbackState, ...(state || {}) };
+    merged.racers = Array.isArray(merged.racers) ? merged.racers : [];
+    merged.pairings = Array.isArray(merged.pairings) ? merged.pairings : [];
+    return merged;
+  }
+
+  function getLocalState() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return clone(fallbackState);
+      return normalize(JSON.parse(raw));
+    } catch {
+      return clone(fallbackState);
+    }
+  }
+
+  function setLocalState(state) {
+    const next = normalize({ ...state, updatedAt: Date.now() });
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+    if (bc) bc.postMessage(next);
     return next;
   }
-  function uid() { return Math.random().toString(36).slice(2, 10); }
-  function getLocalState() {
-    try { return normalize(JSON.parse(localStorage.getItem(STORAGE_KEY) || "null")); }
-    catch { return clone(DEFAULT_STATE); }
-  }
-  function setLocalState(state) { localStorage.setItem(STORAGE_KEY, JSON.stringify(normalize(state))); }
 
-  function hasSupabase() {
-    return !!(global.SUPABASE_CONFIG && global.SUPABASE_CONFIG.url && global.SUPABASE_CONFIG.anonKey && global.supabase && global.supabase.createClient);
+  async function fetchJson(url, options = {}) {
+    const res = await fetch(url, {
+      headers: { 'Content-Type': 'application/json' },
+      ...options
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
   }
 
-  let supabaseClient = null;
-  function getSupabaseClient() {
-    if (!hasSupabase()) return null;
-    if (!supabaseClient) {
-      supabaseClient = global.supabase.createClient(global.SUPABASE_CONFIG.url, global.SUPABASE_CONFIG.anonKey);
+  function getPreferredSyncMode() {
+    const saved = localStorage.getItem(SYNC_MODE_KEY);
+    if (saved === 'online' || saved === 'local' || saved === 'auto') return saved;
+    if (location.protocol.startsWith('http') && location.hostname.includes('netlify.app')) return 'online';
+    return 'auto';
+  }
+
+  function setPreferredSyncMode(mode) {
+    localStorage.setItem(SYNC_MODE_KEY, mode);
+    if (bc) bc.postMessage({ __syncMode: mode });
+  }
+
+  async function isRemoteAvailable(force = false) {
+    const now = Date.now();
+    if (!force && remoteCache.checkedAt && now - remoteCache.checkedAt < 3000) {
+      return remoteCache.ok;
     }
-    return supabaseClient;
+    try {
+      await fetchSupabaseState();
+      remoteCache = { ok: true, checkedAt: now };
+      return true;
+    } catch {
+      remoteCache = { ok: false, checkedAt: now };
+      return false;
+    }
   }
 
-  async function fetchRemoteState() {
-    const client = getSupabaseClient();
-    if (!client) throw new Error("Supabase not configured");
-    const table = global.SUPABASE_CONFIG.table || "race_state";
-    const rowId = global.SUPABASE_CONFIG.rowId || 1;
-    const { data, error } = await client.from(table).select("payload").eq("id", rowId).single();
-    if (error) throw error;
-    return normalize((data && data.payload) || {});
+  async function resolveTransportMode() {
+    const preferred = getPreferredSyncMode();
+    if (preferred === 'local') {
+      return { preferred, actual: 'local', remoteAvailable: false };
+    }
+    const remoteAvailable = await isRemoteAvailable();
+    if (preferred === 'online') {
+      return { preferred, actual: remoteAvailable ? 'online' : 'local', remoteAvailable };
+    }
+    return { preferred, actual: remoteAvailable ? 'online' : 'local', remoteAvailable };
   }
 
-  async function saveRemoteState(state) {
-    const client = getSupabaseClient();
-    if (!client) throw new Error("Supabase not configured");
-    const table = global.SUPABASE_CONFIG.table || "race_state";
-    const rowId = global.SUPABASE_CONFIG.rowId || 1;
-    const payload = normalize(state);
-    payload.updatedAt = new Date().toISOString();
-    const { error } = await client.from(table).upsert({
-      id: rowId,
-      payload: payload,
-      updated_at: payload.updatedAt
-    }, { onConflict: "id" });
-    if (error) throw error;
-    if (bc) bc.postMessage({ type: "state-changed" });
-    return payload;
-  }
-
-  async function getState(mode) {
-    if (mode === "local") return getLocalState();
-    if (mode === "online") return await fetchRemoteState();
-    if (hasSupabase()) {
-      try { return await fetchRemoteState(); }
-      catch { return getLocalState(); }
+  async function getState() {
+    const mode = await resolveTransportMode();
+    if (mode.actual === 'online') {
+      const data = await fetchSupabaseState();
+      return normalize(data.state);
     }
     return getLocalState();
   }
 
-  async function saveState(state, mode) {
-    if (mode === "online" && hasSupabase()) return await saveRemoteState(state);
-    const payload = normalize(state);
-    payload.updatedAt = new Date().toISOString();
-    setLocalState(payload);
-    if (bc) bc.postMessage({ type: "state-changed" });
-    return payload;
+  async function setState(nextState) {
+    const normalized = normalize({ ...nextState, updatedAt: Date.now() });
+    const mode = await resolveTransportMode();
+    if (mode.actual === 'online') {
+      const data = await saveSupabaseState(normalized);
+      if (bc) bc.postMessage(normalized);
+      return normalize(data);
+    }
+    return setLocalState(normalized);
   }
 
-  function shuffle(list) {
-    const arr = [...list];
-    for (let i = arr.length - 1; i > 0; i--) {
+  async function updateState(mutator) {
+    const current = await getState();
+    const next = await mutator(clone(current));
+    return setState(next);
+  }
+
+  function listen(listener) {
+    if (bc) {
+      bc.onmessage = (event) => {
+        if (event.data?.__syncMode) {
+          listener({ type: 'sync-mode', mode: event.data.__syncMode });
+          return;
+        }
+        listener(normalize(event.data));
+      };
+    }
+    window.addEventListener('storage', (event) => {
+      if (event.key === STORAGE_KEY && event.newValue) {
+        listener(normalize(JSON.parse(event.newValue)));
+      }
+      if (event.key === SYNC_MODE_KEY && event.newValue) {
+        listener({ type: 'sync-mode', mode: event.newValue });
+      }
+    });
+  }
+
+  function makeRacer(payload) {
+  
+function getSupabaseClient() {
+  const cfg = window.SUPABASE_CONFIG;
+  if (!cfg || !cfg.url || !cfg.anonKey || !window.supabase || !window.supabase.createClient) {
+    throw new Error('Supabase not configured');
+  }
+  if (!window.__HTH_SUPABASE__) {
+    window.__HTH_SUPABASE__ = window.supabase.createClient(cfg.url, cfg.anonKey);
+  }
+  return { client: window.__HTH_SUPABASE__, cfg };
+}
+
+async function fetchSupabaseState() {
+  const { client, cfg } = getSupabaseClient();
+  const { data, error } = await client
+    .from(cfg.table || 'race_state')
+    .select('payload')
+    .eq('id', cfg.rowId || 1)
+    .single();
+  if (error) throw error;
+  return data?.payload || {};
+}
+
+async function saveSupabaseState(normalized) {
+  const { client, cfg } = getSupabaseClient();
+  const { error } = await client
+    .from(cfg.table || 'race_state')
+    .upsert({
+      id: cfg.rowId || 1,
+      payload: normalized,
+      updated_at: new Date().toISOString()
+    }, { onConflict: 'id' });
+  if (error) throw error;
+  return normalized;
+}
+
+  return {
+      id: uid(),
+      racerName: payload.racerName?.trim() || 'Unnamed Racer',
+      carName: payload.carName?.trim() || 'Race Car',
+      carNumber: payload.carNumber?.trim() || '',
+      carImage: payload.carImage?.trim() || 'https://images.unsplash.com/photo-1503376780353-7e6692767b70?auto=format&fit=crop&w=1200&q=80',
+      hadBye: false,
+      active: true
+    };
+  }
+
+  function shuffle(arr) {
+    const copy = [...arr];
+    for (let i = copy.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
-      const tmp = arr[i]; arr[i] = arr[j]; arr[j] = tmp;
+      [copy[i], copy[j]] = [copy[j], copy[i]];
     }
-    return arr;
+    return copy;
   }
 
-  function generatePairingsFromRacers(racers) {
-    const shuffled = shuffle(racers.filter(r => !r.eliminated));
-    const out = [];
-    while (shuffled.length > 1) {
-      const left = shuffled.shift();
-      const right = shuffled.shift();
-      out.push({ id: uid(), left, right, winnerId: null, completed: false });
+  function buildPairings(racers) {
+    const active = racers.filter((r) => r.active !== false);
+    if (active.length < 2) return [];
+
+    let pool = shuffle(active);
+    const pairings = [];
+
+    if (pool.length % 2 === 1) {
+      const eligible = pool.filter((r) => !r.hadBye);
+      const byePool = eligible.length ? eligible : pool;
+      const byeWinner = byePool[Math.floor(Math.random() * byePool.length)];
+      pairings.push({
+        id: uid(),
+        type: 'bye',
+        lane: 'BYE',
+        racer1: byeWinner,
+        racer2: null,
+        winnerId: byeWinner.id
+      });
+      pool = pool.filter((r) => r.id !== byeWinner.id);
     }
-    if (shuffled.length === 1) {
-      const bye = shuffled.shift();
-      out.push({ id: uid(), left: bye, right: null, winnerId: bye.id, completed: true, bye: true });
+
+    pool = shuffle(pool);
+    for (let i = 0; i < pool.length; i += 2) {
+      const racer1 = pool[i];
+      const racer2 = pool[i + 1];
+      const lanePattern = Math.random() > 0.5 ? ['Left', 'Right'] : ['Right', 'Left'];
+      pairings.push({
+        id: uid(),
+        type: 'match',
+        racer1,
+        racer2,
+        lanes: [
+          { racerId: racer1.id, lane: lanePattern[0] },
+          { racerId: racer2.id, lane: lanePattern[1] }
+        ],
+        winnerId: null
+      });
     }
-    return out;
+
+    return pairings;
   }
 
-  function allPairingsComplete(pairings) {
-    return pairings.length > 0 && pairings.every(p => p.completed);
+  async function seedDemoData() {
+    return updateState((state) => {
+      if (state.racers.length) return state;
+      const demo = [
+        ['Kareem Browne', 'Lt. Dan', '007'],
+        ['Trey Mason', 'Warpath', '119'],
+        ['Chris Hall', 'Black Mamba', '222'],
+        ['Jalen Carter', 'Pressure', '455'],
+        ['Mike Reed', 'No Lift', '808'],
+        ['Derrick Owens', 'Street Heat', '510'],
+        ['Cam Jones', 'Boost Mode', '317']
+      ].map(([racerName, carName, carNumber], i) => makeRacer({
+        racerName,
+        carName,
+        carNumber,
+        carImage: `https://picsum.photos/seed/htown${i}/800/500`
+      }));
+      state.racers = demo;
+      return state;
+    });
   }
 
-  function winnersFromPairings(pairings) {
-    return pairings.filter(p => p.winnerId).map(p => {
-      if (p.left && p.left.id === p.winnerId) return p.left;
-      if (p.right && p.right.id === p.winnerId) return p.right;
-      return null;
-    }).filter(Boolean);
-  }
 
-  global.RaceApp = {
-    DEFAULT_STATE, clone, normalize, uid, getLocalState, setLocalState,
-    hasSupabase, getState, saveState, generatePairingsFromRacers,
-    allPairingsComplete, winnersFromPairings, bc
+function getSupabaseClient() {
+  const cfg = window.SUPABASE_CONFIG;
+  if (!cfg || !cfg.url || !cfg.anonKey || !window.supabase || !window.supabase.createClient) {
+    throw new Error('Supabase not configured');
+  }
+  if (!window.__HTH_SUPABASE__) {
+    window.__HTH_SUPABASE__ = window.supabase.createClient(cfg.url, cfg.anonKey);
+  }
+  return { client: window.__HTH_SUPABASE__, cfg };
+}
+
+async function fetchSupabaseState() {
+  const { client, cfg } = getSupabaseClient();
+  const { data, error } = await client
+    .from(cfg.table || 'race_state')
+    .select('payload')
+    .eq('id', cfg.rowId || 1)
+    .single();
+  if (error) throw error;
+  return data?.payload || {};
+}
+
+async function saveSupabaseState(normalized) {
+  const { client, cfg } = getSupabaseClient();
+  const { error } = await client
+    .from(cfg.table || 'race_state')
+    .upsert({
+      id: cfg.rowId || 1,
+      payload: normalized,
+      updated_at: new Date().toISOString()
+    }, { onConflict: 'id' });
+  if (error) throw error;
+  return normalized;
+}
+
+  return {
+    uid,
+    getState,
+    setState,
+    updateState,
+    listen,
+    makeRacer,
+    buildPairings,
+    seedDemoData,
+    isRemoteAvailable,
+    getPreferredSyncMode,
+    setPreferredSyncMode,
+    resolveTransportMode
   };
-})(window);
+})();
