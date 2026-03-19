@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>H-Town Hitters Race App - Racer View</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main class="racer-shell">
+    <header class="racer-top glass">
+      <div>
+        <div class="eyebrow">Racer View</div>
+        <h1 id="racerEventName">H-Town Hitters Race App</h1>
+      </div>
+      <div class="top-actions">
+        <input id="searchInput" type="text" placeholder="Search racer or car name" />
+        <button class="btn btn-secondary" id="racerRefreshBtn">Refresh</button>
+      </div>
+    </header>
+
+    <section id="alertBanner" class="alert-banner hidden"></section>
+
+    <section class="racer-summary-grid">
+      <article class="glass summary-box">
+        <span class="summary-label">Round</span>
+        <strong id="summaryRound">1</strong>
+      </article>
+      <article class="glass summary-box">
+        <span class="summary-label">Status</span>
+        <strong id="summaryStatus">Staging</strong>
+      </article>
+      <article class="glass summary-box">
+        <span class="summary-label">Pairings</span>
+        <strong id="summaryPairings">0</strong>
+      </article>
+    </section>
+
+    <section id="racerCards" class="match-grid"></section>
+  </main>
+  <script src="supabase-config.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="app.js"></script>
+  <script src="racer.js"></script>
+</body>
+</html>

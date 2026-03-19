@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>H-Town Hitters Race App - Admin</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="side-panel glass">
+      <div class="brand-block">
+        <div class="brand-kicker">B STYLE</div>
+        <h1>H-Town Hitters</h1>
+        <p>Race Control</p>
+      </div>
+      <nav class="nav-stack">
+        <a class="nav-link active" href="admin.html">Admin</a>
+        <a class="nav-link" href="racer.html">Racer View</a>
+        <a class="nav-link" href="board.html">MultiView Board</a>
+        <a class="nav-link" href="index.html">Home</a>
+      </nav>
+      <div class="status-card">
+        <div class="status-label">Sync Mode</div>
+        <div id="syncMode" class="status-value">Checking...</div>
+        <div class="sync-toggle" id="syncToggle">
+          <button class="sync-btn" id="autoModeBtn" type="button">Auto</button>
+          <button class="sync-btn" id="onlineModeBtn" type="button">Online</button>
+          <button class="sync-btn" id="localModeBtn" type="button">Local</button>
+        </div>
+        <div class="small muted" id="syncHint">Auto uses online when Netlify functions are available.</div>
+      </div>
+      <div class="status-card">
+        <div class="status-label">Share Link</div>
+        <div class="mono" id="shareLink"></div>
+      </div>
+    </aside>
+
+    <main class="main-panel">
+      <header class="topbar glass">
+        <div>
+          <div class="eyebrow">Admin Control</div>
+          <h2>Round Manager</h2>
+        </div>
+        <div class="top-actions">
+          <button class="btn btn-secondary" id="refreshBtn">Refresh</button>
+          <button class="btn btn-danger" id="resetBtn">Full Reset</button>
+        </div>
+      </header>
+
+      <section class="dashboard-grid">
+        <article class="panel glass">
+          <div class="panel-head">
+            <h3>Event Setup</h3>
+          </div>
+          <div class="form-grid">
+            <label>
+              Event Name
+              <input id="eventName" type="text" placeholder="H-Town Hitters Race App" />
+            </label>
+            <label>
+              Admin Passcode
+              <input id="adminCode" type="password" placeholder="Optional passcode" />
+            </label>
+            <label>
+              Current Round
+              <input id="roundNumber" type="number" min="1" value="1" />
+            </label>
+            <label>
+              Track Status
+              <select id="eventStatus">
+                <option value="Staging">Staging</option>
+                <option value="Pairing">Pairing</option>
+                <option value="Calling to Lanes">Calling to Lanes</option>
+                <option value="In Progress">In Progress</option>
+                <option value="Completed">Completed</option>
+              </select>
+            </label>
+          </div>
+          <div class="inline-actions">
+            <button class="btn btn-primary" id="saveEventBtn">Save Event Settings</button>
+            <button class="btn btn-secondary" id="announceBtn">Push Call To Lanes</button>
+          </div>
+          <label class="full-width">
+            Call-to-Lanes Message
+            <input id="callMessage" type="text" placeholder="Round 1 to the lanes now" />
+          </label>
+        </article>
+
+        <article class="panel glass">
+          <div class="panel-head">
+            <h3>Add Racer</h3>
+          </div>
+          <div class="form-grid">
+            <label>
+              Racer Name
+              <input id="racerName" type="text" placeholder="Kareem Browne" />
+            </label>
+            <label>
+              Car Name
+              <input id="carName" type="text" placeholder="Lt. Dan" />
+            </label>
+            <label>
+              Car Number
+              <input id="carNumber" type="text" placeholder="#007" />
+            </label>
+            <label>
+              Car Image URL
+              <input id="carImage" type="url" placeholder="https://..." />
+            </label>
+          </div>
+          <div class="inline-actions">
+            <button class="btn btn-primary" id="addRacerBtn">Add Racer</button>
+            <button class="btn btn-secondary" id="demoDataBtn">Load Demo Racers</button>
+          </div>
+        </article>
+      </section>
+
+      <section class="two-col-grid">
+        <article class="panel glass">
+          <div class="panel-head">
+            <h3>Racers</h3>
+            <div class="pill"><span id="racerCount">0</span> entries</div>
+          </div>
+          <div id="racerList" class="list-stack"></div>
+        </article>
+
+        <article class="panel glass">
+          <div class="panel-head">
+            <h3>Round Actions</h3>
+          </div>
+          <div class="inline-actions wrap">
+            <button class="btn btn-primary" id="pairRoundBtn">Generate Pairings</button>
+            <button class="btn btn-secondary" id="clearRoundBtn">Clear Round</button>
+            <button class="btn btn-secondary" id="nextRoundBtn">Advance Round</button>
+          </div>
+          <p class="muted">Pairing logic is random. Byes are randomized from racers who have not already received a bye, unless all active racers have already had one.</p>
+          <div id="pairingsList" class="list-stack"></div>
+        </article>
+      </section>
+    </main>
+  </div>
+  <script src="supabase-config.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="app.js"></script>
+  <script src="admin.js"></script>
+</body>
+</html>
