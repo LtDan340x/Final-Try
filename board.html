@@ -4,38 +4,70 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>H-Town Hitters Race App - MultiView Board</title>
+
   <link rel="stylesheet" href="styles.css" />
+
+  <script src="supabase-config.js"></script>
 </head>
+
 <body>
-  <main class="board-shell">
-    <header class="board-top glass">
-      <div>
-        <div class="eyebrow">Track Board</div>
-        <h1 id="boardEventName">H-Town Hitters Race App</h1>
-      </div>
-      <div class="board-stats">
-        <div class="stat-chip">Round <span id="boardRound">1</span></div>
-        <div class="stat-chip">Status <span id="boardStatus">Staging</span></div>
-      </div>
-    </header>
+  <div class="app-shell">
 
-    <section id="boardAlert" class="alert-banner hidden"></section>
+    <aside class="side-panel glass">
+      <div class="brand-block">
+        <div class="brand-kicker">B STYLE</div>
+        <h1>H-Town Hitters</h1>
+        <p>Race Control</p>
+      </div>
 
-    <section class="board-grid">
-      <article class="panel glass">
-        <div class="panel-head"><h3>Pairings</h3></div>
-        <div id="boardPairings" class="list-stack large"></div>
-      </article>
-      <article class="panel glass">
-        <div class="panel-head"><h3>Lane Board</h3></div>
-        <div id="boardLanes" class="list-stack large"></div>
-      </article>
-    </section>
-  </main>
-  <script src="app.js"></script>
+      <nav class="nav-stack">
+        <a class="nav-link" href="admin.html">Admin</a>
+        <a class="nav-link" href="racer.html">Racer View</a>
+        <a class="nav-link active" href="board.html">MultiView Board</a>
+        <a class="nav-link" href="index.html">Home</a>
+      </nav>
+
+      <div class="sync-box">
+        <h4>SYNC MODE</h4>
+        <p id="syncStatus">Checking...</p>
+      </div>
+
+      <div class="share-box">
+        <h4>SHARE LINK</h4>
+        <p>https://htxhitters.netlify.app/board</p>
+      </div>
+    </aside>
+
+    <main class="main-panel">
+      <h2>Track Board</h2>
+
+      <div class="card">
+        <h3>Track Status</h3>
+        <p id="boardTrackStatus">Waiting for updates...</p>
+      </div>
+
+      <div class="card">
+        <h3>Call To Lanes</h3>
+        <p id="boardCallMessage">No active call-to-lanes message.</p>
+      </div>
+
+      <div class="card">
+        <h3>Lane / Pairing Board</h3>
+        <div id="boardPairings">
+          Waiting for pairings...
+        </div>
+      </div>
+    </main>
+  </div>
+
   <script src="board.js"></script>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="supabase-config.js"></script>
+  <script>
+    if (window.SUPABASE_CONFIG && window.SUPABASE_CONFIG.url) {
+      document.getElementById("syncStatus").innerText = "Online Mode ✅";
+    } else {
+      document.getElementById("syncStatus").innerText = "Local Browser Mode ❌";
+    }
+  </script>
 </body>
 </html>
