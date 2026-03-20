@@ -1,30 +1,44 @@
-# H-Town Hitters Race App v2.1
+# H-Town Hitters Live
 
-Fixed build with visible sync controls.
+Netlify + Supabase live drag racing control app.
 
-## What changed in v2.1
-- Added visible Sync Mode buttons on the admin page: Auto, Online, Local
-- Online mode can now be forced from the UI
-- Defaults to Online when opened from a Netlify site
-- Faster refresh on racer and board screens (1 second)
-- Clear sync status badge and fallback message
+## What is included
+- Admin page for racer entry, pairing generation, winner control, call-to-lanes message, and round advance
+- Racer view for phones
+- Board view for TVs / kiosks
+- Supabase realtime sync
+- Netlify-ready routing and build config
 
-## Pages
-- `/admin.html`
-- `/racer.html`
-- `/board.html`
+## Setup
 
-## How to use live mode
-1. Deploy the full project to Netlify.
-2. Open `/admin.html`.
-3. In the left panel under Sync Mode, click **Online**.
-4. Open `/racer.html` on phones and `/board.html` on the TV.
+### 1. Install
+```bash
+npm install
+npm run dev
+```
 
-## Netlify notes
-- Functions path is `netlify/functions`
-- Publish path is `.`
-- Main shared state function is `/.netlify/functions/race-state`
+### 2. Create Supabase project
+In Supabase SQL Editor, run `supabase-schema.sql`.
+
+### 3. Add environment variables
+Create `.env` from `.env.example`.
+
+```bash
+VITE_SUPABASE_URL=...
+VITE_SUPABASE_ANON_KEY=...
+```
+
+### 4. Deploy to Netlify
+- Push this folder to GitHub
+- Import repo into Netlify
+- Build command: `npm run build`
+- Publish directory: `dist`
+- Add the same two environment variables in Netlify
+
+## Routes
+- `/admin`
+- `/racer`
+- `/board`
 
 ## Notes
-- If Netlify functions are not detected, the app falls back to local browser mode.
-- This build is still polling-based live sync. For true instant push, move the state layer to Supabase Realtime or Firebase.
+This version allows public database access for quick race-day deployment. For a hardened production version, add authenticated admin access and stricter RLS policies.
